@@ -1,0 +1,5 @@
+audiobook:
+  fb2filemask: '{{.Author.LastName}} - {{.Sequence.Name}}({{.Sequence.Num}}) - {{.BookTitle}}'
+  fb2delete: true
+  zipfilemask: '{{.Author.LastName}} - {{.Sequence.Name}}({{.Sequence.Num}}) - {{.BookTitle}}'
+  ziprename: true
