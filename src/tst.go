@@ -3,6 +3,9 @@ package main
 import (
 	"github.com/subchen/go-xmldom"
 	"fmt"
+	"path/filepath"
+	"os"
+	"bbld"
 )
 
 const (
@@ -38,6 +41,24 @@ func ExampleNode_Query() {
 	// testcase: id = ExampleParse
 }
 
+type nm struct {
+	N int
+}
+
 func main() {
-	ExampleNode_Query()
+	//ExampleNode_Query()
+	s := "c:/Temp/book/Акула пера в Мире Файролла/Васильев - Акула пера в Мире Файролла(1) - Игра не ради игры.zip"
+
+	fmt.Println(bbld.GenFileName("{{.N}} {{.A}}", "", nm{1}))
+	d:= filepath.FromSlash(s)
+	fmt.Println(d)
+	fmt.Println(filepath.Separator)
+
+	fmt.Println(os.Executable())
+	fmt.Println()
+	fmt.Println(os.Args[0])
+	fmt.Println(filepath.Dir(os.Args[0]))
+	fmt.Println(filepath.Abs(filepath.Dir(os.Args[0])))
+
+	//fmt.Println(j)
 }

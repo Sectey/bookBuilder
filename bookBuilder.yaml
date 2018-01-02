@@ -1,5 +1,13 @@
 audiobook:
-  fb2filemask: '{{.Author.LastName}} - {{.Sequence.Name}}({{.Sequence.Num}}) - {{.BookTitle}}'
+  coverfilemask: '{{.Author.LastName}} - {{.Sequence.Name}}({{.Sequence.Num}}) - '
+  coverwritefirstonly: false
+  fb2filemask: '{{.Author.LastName}} - {{.Sequence.Name}}({{.Sequence.Num}}) - {{.BookTitle}}.fb2'
   fb2delete: true
-  zipfilemask: '{{.Author.LastName}} - {{.Sequence.Name}}({{.Sequence.Num}}) - {{.BookTitle}}'
+  txtfilemask: '{{.Author.LastName}} - {{.Sequence.Name}}({{.Sequence.Num}}) - {{.BookTitle}}.txt'
+  zipfilemask: '{{.Author.LastName}} - {{.Sequence.Name}}({{.Sequence.Num}}) - {{.BookTitle}}.zip'
   ziprename: true
+  rewritebook: false
+fb2parsing:
+  booktitleislastwords: true
+writingbookpaths:
+  DESKTOP-U8854SA: c:\temp\12

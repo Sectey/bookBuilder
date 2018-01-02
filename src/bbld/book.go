@@ -1,17 +1,13 @@
 package bbld
 
 import (
-	"path"
-	"golang.org/x/text/encoding/charmap"
-	"golang.org/x/text/transform"
 	"os"
-	"bufio"
-	"log"
-	"strings"
-	"text/template"
-	"bytes"
 	"path/filepath"
+	"strings"
 	//"io/ioutil"
+	"io/ioutil"
+	"log"
+	"strconv"
 )
 
 type Books struct {
@@ -22,12 +18,14 @@ type Book struct {
 	BookTitle     string
 	Author        Author
 	Sequence      Sequence
-	ZipFileName      string
-	FB2FileName      string
-	TxtFileName      string
+	ZipFileName   string
+	FB2FileName   string
+	TxtFileName   string
 	CoverpageFile string
-	fb2 *Fb2Parser
-
+	coverpage     string
+	fb2           *Fb2Parser
+	WriteBook     bool
+	AudioPath     string
 }
 
 type Author struct {
@@ -42,7 +40,7 @@ type Sequence struct {
 }
 
 func (me *Book) RenameFb2() error {
-	newFileName, err := me.GenFileName(cfg.AudioBook.Fb2FileMask, me.FB2FileName)
+	newFileName, err := GenFileName(cfg.AudioBook.Fb2FileMask, ExtractDir(me.FB2FileName), me)
 
 	err = os.Rename(me.FB2FileName, newFileName)
 	if err != nil {
@@ -56,7 +54,7 @@ func (me *Book) RenameZip() error {
 	if !cfg.AudioBook.ZipRename || cfg.AudioBook.ZipFileMask == "" {
 		return nil
 	}
-	newFileName, err := me.GenFileName(cfg.AudioBook.ZipFileMask, me.ZipFileName)
+	newFileName, err := GenFileName(cfg.AudioBook.ZipFileMask, ExtractDir(me.ZipFileName), me)
 
 	err = os.Rename(me.ZipFileName, newFileName)
 	if err != nil {
@@ -66,32 +64,11 @@ func (me *Book) RenameZip() error {
 	return nil
 }
 
-func (me *Book) GenFileName(mask string, oldFileName string) (string, error) {
-	s := ""
-	buf := bytes.NewBufferString(s)
-	tmpl, err := template.New("test").Parse(mask)
-	if err != nil {
-		panic(err)
-	}
-	err = tmpl.Execute(buf, *me)
-
-	dir, _ := filepath.Split(oldFileName)
-	ext := filepath.Ext(oldFileName)
-	newFileName := filepath.Join(dir, buf.String()) + ext
-	log.Println("New name:", newFileName)
-
-	return newFileName, err
-}
-
-func replaceExt(pathFile string, newExt string) string {
-	ext := path.Ext(pathFile)
-	return pathFile[0:len(pathFile)-len(ext)] + newExt
-}
-
 func (me *Book) SaveTxt() error {
-	if me.TxtFileName == "" {
-		me.TxtFileName = replaceExt(me.FB2FileName, ".txt")
-	}
+	//if me.TxtFileName == "" {
+	//	me.TxtFileName = replaceExt(me.FB2FileName, ".txt")
+	//}
+	me.TxtFileName, _ = GenFileName(cfg.AudioBook.TxtFileMask, ExtractDir(me.FB2FileName), me)
 
 	text := ""
 
@@ -111,12 +88,33 @@ func (me *Book) SaveTxt() error {
 	return nil
 }
 
+func (book *Book) SaveCover() {
+	num := 0
+	num, _ = strconv.Atoi(book.Sequence.Num)
+	if cfg.AudioBook.CoverWriteFirstOnly && num > 1 {
+		return
+	}
+	for key, bin := range book.fb2.covers {
+		if (key == 1 && book.coverpage == "") || (book.coverpage == bin.Id) {
+			filename, err := GenFileName(cfg.AudioBook.CoverFileMask, ExtractDir(book.FB2FileName), book)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			filename = filename + bin.Id
+			ioutil.WriteFile(filename, bin.Binary, 0644)
+			book.CoverpageFile = filename
+		}
+	}
+}
+
 func (me *Book) CorrectText(txt string) string {
 	t := strings.Replace(txt, "–", "-", -1)
 	t = strings.Replace(t, "—", "-", -1)
 	t = strings.Replace(t, "–", "-", -1)
 	//t = strings.Replace(t, "\xA0", " ", -1)
 	t = strings.Replace(t, "\t", " ", -1)
+	t = strings.Replace(t, "\n", "\r\n", -1)
 	t = strings.Replace(t, "  ", " ", -1)
 	t = strings.Replace(t, "  ", " ", -1)
 	t = strings.Replace(t, "  ", " ", -1)
@@ -124,22 +122,16 @@ func (me *Book) CorrectText(txt string) string {
 }
 
 func writeContent(fileName string, str string) (err error) {
-	var txtFile *os.File
-	if _, err := os.Stat(fileName); os.IsExist(err) {
-		os.Remove(fileName)
+	err = (&Writer1251{}).Write(fileName, str)
+	return err
+}
+
+func (me *Book) CopyTxtToWritePath() {
+	s := me.TxtFileName
+	_, fileName := filepath.Split(s)
+	newName := filepath.Join(cfg.GetWritingBookPath(), fileName)
+	err := os.Rename(me.TxtFileName, newName)
+	if (err != nil) {
+		me.TxtFileName = newName
 	}
-	txtFile, err = os.Create(fileName)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-	w := bufio.NewWriter(txtFile)
-
-	defer txtFile.Close()
-
-	wToWin1251 := transform.NewWriter(w, charmap.Windows1251.NewEncoder())
-	wToWin1251.Write ([]byte(str))
-	w.Flush()
-
-	return
 }

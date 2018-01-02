@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"strings"
 )
 
 type Builder struct {
@@ -63,6 +64,7 @@ func (me *Builder) Save(fileName string) error {
 func (me *Builder) Scan() error {
 	zipFiles := []string{};
 	filepath.Walk(me.RootDir, func(path string, info os.FileInfo, err error) error {
+		fmt.Println(path)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -85,9 +87,12 @@ func (me *Builder) Run(zipFileNames []string) error {
 
 func (me *Builder) PrepareBoor(ZipFileName string) error {
 	book := me.FindZip(ZipFileName)
+	if !cfg.AudioBook.RewriteBook && book.WriteBook {
+		return nil
+	}
 
 	err := me.ExtractFb2(book)
-	me.FillBoorData(book)
+	me.FillBookData(book)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -96,6 +101,10 @@ func (me *Builder) PrepareBoor(ZipFileName string) error {
 		os.Remove(book.FB2FileName)
 	}
 	book.SaveTxt()
+	book.SaveCover()
+	book.CopyTxtToWritePath()
+	me.FillAudio(book)
+	book.WriteBook = true
 	return err
 }
 
@@ -106,7 +115,7 @@ func (me *Builder) ExtractFb2(book *Book) (err error) {
 	return err
 }
 
-func (me *Builder) FillBoorData(book *Book) error {
+func (me *Builder) FillBookData(book *Book) error {
 	book.fb2 = &Fb2Parser{}
 	err := book.fb2.Open(book.FB2FileName)
 	if err != nil {
@@ -118,6 +127,18 @@ func (me *Builder) FillBoorData(book *Book) error {
 	return err
 }
 
+func (me *Builder) FillAudio(book *Book)  {
+	if (book.AudioPath != "") {
+		return
+	}
+	audioPath := cfg.GetWritingBookPath()
+	_, fl := filepath.Split(book.TxtFileName)
+	fl = "!" + strings.Replace(ExtractFilenameWithoutExt(fl), " ", "_", -1)
+	audioPath = filepath.Join(audioPath, fl)
+	if FileExists(audioPath) {
+		book.AudioPath = audioPath
+	}
+}
 
 func (me *Builder) TrimFb2(book *Book) error {
 

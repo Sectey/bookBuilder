@@ -10,12 +10,14 @@ import (
 	"bytes"
 	"io/ioutil"
 	"regexp"
+	"strings"
 )
 
 type Fb2Parser struct {
 	doc *xmldom.Document
 	root *xmldom.Node
 	xpath *xmlpath.Node
+	covers []*fb2binary
 }
 
 func (me *Fb2Parser) Open(filename string) (err error) {
@@ -64,17 +66,38 @@ func (me *Fb2Parser) LoadBookInfo(book *Book) (err error) {
 		err = errors.New("Not load fb2 book")
 		return err
 	}
-	// find all children
-	//fmt.Printf("children = %v\n", len(node.Query("//*")))
 
-	book.BookTitle, _ = elementValue(me.xpath, "FictionBook/description/title-info/book-title")
+	if book.BookTitle == "" {
+		book.BookTitle, _ = elementValue(me.xpath, "FictionBook/description/title-info/book-title")
+		if cfg.Fb2Parsing.BookTitleIsLastWords {
+			words := strings.Split(book.BookTitle, ".")
+			book.BookTitle = strings.TrimSpace(words[len(words)-1])
+		}
+	}
 
-	book.Author.FirstName, _ = elementValue(me.xpath, "FictionBook/description/title-info/author/first-name")
-	book.Author.MiddleName, _ = elementValue(me.xpath, "FictionBook/description/title-info/author/middle-name")
-	book.Author.LastName, _ = elementValue(me.xpath, "FictionBook/description/title-info/author/last-name")
+	if book.Author.FirstName == "" {
+		book.Author.FirstName, _ = elementValue(me.xpath, "FictionBook/description/title-info/author/first-name")
+	}
+	if book.Author.MiddleName == "" {
+		book.Author.MiddleName, _ = elementValue(me.xpath, "FictionBook/description/title-info/author/middle-name")
+	}
+	if book.Author.LastName == "" {
+		book.Author.LastName, _ = elementValue(me.xpath, "FictionBook/description/title-info/author/last-name")
+	}
 
-	book.Sequence.Name, _ = elementValue(me.xpath, "FictionBook/description/title-info/sequence/@name")
-	book.Sequence.Num, _ = elementValue(me.xpath, "FictionBook/description/title-info/sequence/@number")
+	if book.Sequence.Name == "" {
+		book.Sequence.Name, _ = elementValue(me.xpath, "FictionBook/description/title-info/sequence/@name")
+	}
+	if book.Sequence.Num == "" {
+		book.Sequence.Num, _ = elementValue(me.xpath, "FictionBook/description/title-info/sequence/@number")
+	}
+
+	book.coverpage, _ = elementValue(me.xpath, "FictionBook/description/title-info/coverpage/image/@href")
+	if book.coverpage != "" {
+		book.coverpage = book.coverpage[1:]
+	}
+
+	me.covers = ExtractBinary(me.doc)
 	return nil
 }
 
@@ -84,18 +107,22 @@ func _nodeText(buffer *bytes.Buffer, node *xmldom.Node, path string) {
 	case "v":
 		buffer.WriteString(node.Text)
 		break
+	case "emphasis":
+		buffer.WriteString(" ")
+		buffer.WriteString(node.Text)
+		break
 	case "p":
 		buffer.WriteString(" ")
 		buffer.WriteString(node.Text)
 		break
 	case "title":
-		buffer.WriteString("\n")
+		buffer.WriteString(" \n")
 		break
 	case "epigraph":
 		buffer.WriteString("- Эпиграф -\n")
 		break
 	case "empty-line":
-		buffer.WriteString("\n\n")
+		buffer.WriteString(" \n \n")
 	default:
 	}
 
@@ -115,6 +142,9 @@ func _nodeText(buffer *bytes.Buffer, node *xmldom.Node, path string) {
 		buffer.WriteString("\n")
 		break
 	case "v":
+		buffer.WriteString("\n")
+		break
+	case "emphasis":
 		buffer.WriteString("\n")
 		break
 	case "p":
@@ -152,7 +182,8 @@ func (me *Fb2Parser) DelLinkA(filename string) {
 		log.Println(err)
 	}
 	s := string(b[:])
-	r, _ := regexp.Compile("<a[ :\\w\\d\\s=\"#>\\[\\]<]+/a>")
+	//s = "\\w"
+	r, _ := regexp.Compile("<a[ :\\w\\d\\s=\\\"#>\\[\\]</.]+/a>")
 	s = r.ReplaceAllString(s, "")
 	ioutil.WriteFile(filename, []byte(s), 0644)
 }
